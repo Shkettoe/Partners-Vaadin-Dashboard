@@ -1,1 +1,36 @@
 /* Add your styles here */
+
+/* Flex View */
+.flex-view  {
+   padding: var(--lumo-space-xl);
+   display: flex;
+   flex-direction: column;
+   justify-content: space-between;
+   align-items: flex-end;
+   gap: var(--lumo-space-xl);
+}
+
+/* Hoverable grid */
+.hoverable-grid::part(row):hover {
+    background-color: var(--lumo-primary-color-10pct);
+    cursor: pointer;
+}
+
+.hoverable-grid::part(body-cell) {
+    cursor: pointer;
+    background-color: transparent;
+}
+
+.hoverable-grid::part(body-cell):hover {
+    cursor: pointer;
+    background-color: var(--lumo-primary-color-10pct);
+}
+
+.hoverable-grid::part(body-cell):focus{
+    background-color: var(--lumo-primary-color-10pct);
+}
+
+.hoverable-grid::part(last-column-cell):hover {
+    background-color: transparent;
+    cursor: default;
+}

@@ -30,6 +30,7 @@ public class PartnerView extends Main implements BeforeEnterObserver {
 
     public PartnerView(PartnerService partnerService, ContactService contactService) {
         this.partnerService = partnerService;
+        setClassName("flex-view");
     }
 
     private void renderPartner() {
