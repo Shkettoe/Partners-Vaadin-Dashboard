@@ -49,7 +49,8 @@ public class ListPartnersView extends Main {
                 grid.addColumn(PartnerModel::getName)
                                 .setHeader("Naziv")
                                 .setSortable(true)
-                                .setAutoWidth(true);
+                                .setAutoWidth(true).setClassName("hoverable-column");
+                ;
                 grid.addColumn(PartnerModel::getShortName)
                                 .setHeader("Kratek naziv")
                                 .setSortable(true)
@@ -112,6 +113,12 @@ public class ListPartnersView extends Main {
                 // Grid
                 var grid = partnersGrid();
                 grid.setItems(this.partnerService.findAll());
+                grid.addColumn(new ComponentRenderer<Button, PartnerModel>(item -> {
+                        var button = new Button(VaadinIcon.EDIT.create());
+                        button.addThemeVariants(ButtonVariant.LUMO_WARNING);
+                        button.addClickListener(e -> this.editItem(item));
+                        return button;
+                }));
 
                 grid.addComponentColumn(item -> {
                         var editBtn = new Button(VaadinIcon.EDIT.create());
