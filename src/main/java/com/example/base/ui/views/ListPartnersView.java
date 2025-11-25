@@ -1,5 +1,8 @@
 package com.example.base.ui.views;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+
 import com.example.base.data.models.PartnerModel;
 import com.example.base.data.services.PartnerService;
 import com.vaadin.flow.component.UI;
@@ -23,16 +26,61 @@ import com.vaadin.flow.router.RouteParameters;
 @Menu(order = 1, title = "Partnerji")
 public class ListPartnersView extends Main {
 
+        // Dependencies
         private final PartnerService partnerService;
+
+        // Components
+        private final Grid<PartnerModel> grid = new Grid<PartnerModel>(PartnerModel.class, false);
+        private final HorizontalLayout buttonsLayout = new HorizontalLayout();
+        private final Button addButton = new Button(VaadinIcon.PLUS.create());
+        private final Button editButton = new Button(VaadinIcon.EDIT.create());
+        private final Button deleteButton = new Button(VaadinIcon.TRASH.create());
+
+        /**
+         * Constructor for ListPartnersView
+         * 
+         * @param partnerService PartnerService
+         */
+        public ListPartnersView(PartnerService partnerService) {
+                this.partnerService = partnerService;
+
+                setClassName("flex-view");
+
+                // Grid
+                configureGrid();
+
+                setupButtons();
+                add(grid, buttonsLayout);
+                loadPartners();
+        }
+
+        /**
+         * Setup buttons (WIP)
+         */
+        private void setupButtons() {
+                addButton.addThemeVariants(ButtonVariant.LUMO_ICON);
+
+                editButton.addThemeVariants(ButtonVariant.LUMO_WARNING);
+
+                deleteButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+                deleteButton.addClickListener(e -> {
+                        Notification.show(
+                                        String.format("%d partnerjev izbranih za brisanje",
+                                                        grid.getSelectedItems().size()),
+                                        3000, Notification.Position.TOP_CENTER);
+                        removePartner(new ArrayList<>(
+                                        grid.getSelectedItems().stream().map(PartnerModel::getId).toList()));
+                });
+
+                buttonsLayout.add(addButton, editButton, deleteButton);
+        }
 
         /**
          * Grid for listing partners
          * 
          * @return Grid<PartnerModel>
          */
-        private Grid<PartnerModel> partnersGrid() {
-                var grid = new Grid<PartnerModel>(PartnerModel.class, false);
-
+        private void configureGrid() {
                 // Grid settings
                 GridMultiSelectionModel<PartnerModel> selectionModel = (GridMultiSelectionModel<PartnerModel>) grid
                                 .setSelectionMode(Grid.SelectionMode.MULTI);
@@ -66,11 +114,28 @@ public class ListPartnersView extends Main {
                                 .setHeader("Davčna št.")
                                 .setWidth("150px");
 
+                // Actions column
+                grid.addComponentColumn(item -> {
+                        var editBtn = new Button(VaadinIcon.EDIT.create());
+                        editBtn.addThemeVariants(ButtonVariant.LUMO_WARNING);
+                        editBtn.addClickListener(e -> editPartner(item.getId()));
+                        var deleteBtn = new Button(VaadinIcon.TRASH.create());
+                        deleteBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
+                        deleteBtn.addClickListener(e -> removePartner(new ArrayList<>(Arrays.asList(item.getId()))));
+                        var layout = new HorizontalLayout(editBtn, deleteBtn);
+                        return layout;
+                }).setHeader("Dejanje").setAutoWidth(true);
+
                 // grid styling
                 grid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
                 grid.addClassName("hoverable-grid");
+        }
 
-                return grid;
+        /**
+         * Load grid with partners
+         */
+        private void loadPartners() {
+                grid.setItems(partnerService.findAll());
         }
 
         /**
@@ -78,8 +143,8 @@ public class ListPartnersView extends Main {
          * 
          * @param item PartnerModel
          */
-        private void editItem(PartnerModel item) {
-                UI.getCurrent().navigate(PartnerView.class, new RouteParameters("id", item.getId().toString()));
+        private void editPartner(Long id) {
+                UI.getCurrent().navigate(PartnerView.class, new RouteParameters("id", id.toString()));
         }
 
         /**
@@ -87,63 +152,42 @@ public class ListPartnersView extends Main {
          * 
          * @param item PartnerModel
          */
-        private void removeItem(PartnerModel item) {
+        private void removePartner(ArrayList<Long> ids) {
                 // Are you sure dialog
-                var confirmDialog = new ConfirmDialog();
-                confirmDialog.setHeader("Ali ste prepričani, da želite izbrisati tega partnerja?");
-                confirmDialog.setConfirmText("Da");
-                confirmDialog.setRejectable(true);
-                confirmDialog.setRejectText("Ne");
-                confirmDialog.addConfirmListener(e -> this.partnerService.delete(item.getId()));
-                confirmDialog.addRejectListener(e -> Notification.show("Operacija je prekinjena", 3000,
-                                Notification.Position.TOP_CENTER));
-                confirmDialog.open();
-        }
+                if (ids.size() < 1)
+                        return;
+                else if (ids.size() > 1) {
+                        var confirmDialog = new ConfirmDialog();
+                        confirmDialog.setHeader(String.format("Ali ste prepričani, da želite izbrisati %d partnerjev?",
+                                        ids.size()));
+                        confirmDialog.setConfirmText("Da");
+                        confirmDialog.setRejectable(true);
+                        confirmDialog.setRejectText("Ne");
+                        confirmDialog.addConfirmListener(e -> {
+                                partnerService.bulkDelete(ids);
+                                loadPartners();
+                                Notification.show("Partnerji so bil uspešno izbrisani", 3000,
+                                                Notification.Position.TOP_CENTER);
+                        });
+                        confirmDialog.addRejectListener(e -> Notification.show("Operacija je prekinjena", 3000,
+                                        Notification.Position.TOP_CENTER));
+                        confirmDialog.open();
+                } else {
+                        var confirmDialog = new ConfirmDialog();
+                        confirmDialog.setHeader("Ali ste prepričani, da želite izbrisati tega partnerja?");
+                        confirmDialog.setConfirmText("Da");
+                        confirmDialog.setRejectable(true);
+                        confirmDialog.setRejectText("Ne");
+                        confirmDialog.addConfirmListener(e -> {
+                                partnerService.delete(ids.get(0)); // Delete first and only item
+                                loadPartners();
+                                Notification.show("Partner je bil uspešno izbrisan", 3000,
+                                                Notification.Position.TOP_CENTER);
+                        });
+                        confirmDialog.addRejectListener(e -> Notification.show("Operacija je prekinjena", 3000,
+                                        Notification.Position.TOP_CENTER));
+                        confirmDialog.open();
 
-        /**
-         * Constructor for ListPartnersView
-         * 
-         * @param partnerService PartnerService
-         */
-        public ListPartnersView(PartnerService partnerService) {
-                this.partnerService = partnerService;
-
-                setClassName("flex-view");
-
-                // Grid
-                var grid = partnersGrid();
-                grid.setItems(this.partnerService.findAll());
-                grid.addColumn(new ComponentRenderer<Button, PartnerModel>(item -> {
-                        var button = new Button(VaadinIcon.EDIT.create());
-                        button.addThemeVariants(ButtonVariant.LUMO_WARNING);
-                        button.addClickListener(e -> this.editItem(item));
-                        return button;
-                }));
-
-                grid.addComponentColumn(item -> {
-                        var editBtn = new Button(VaadinIcon.EDIT.create());
-                        editBtn.addThemeVariants(ButtonVariant.LUMO_WARNING);
-                        editBtn.addClickListener(e -> this.editItem(item));
-                        var deleteBtn = new Button(VaadinIcon.TRASH.create());
-                        deleteBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
-                        deleteBtn.addClickListener(e -> this.removeItem(item));
-                        var layout = new HorizontalLayout(editBtn, deleteBtn);
-                        return layout;
-                }).setHeader("Dejanje").setAutoWidth(true);
-
-                add(grid);
-
-                // Buttons
-                var buttonsLayout = new HorizontalLayout();
-
-                var editButton = new Button(VaadinIcon.EDIT.create());
-                editButton.addThemeVariants(ButtonVariant.LUMO_WARNING);
-                buttonsLayout.add(editButton);
-
-                var deleteButton = new Button(VaadinIcon.TRASH.create());
-                deleteButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
-                buttonsLayout.add(deleteButton);
-
-                add(buttonsLayout);
+                }
         }
 }

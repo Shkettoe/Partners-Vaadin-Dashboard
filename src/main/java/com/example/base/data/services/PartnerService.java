@@ -37,6 +37,10 @@ public class PartnerService {
         partnerRepository.deleteById(id);
     }
 
+    public void bulkDelete(List<Long> ids) {
+        partnerRepository.deleteAllById(ids);
+    }
+
     @Transactional
     public PartnerModel update(Long id, PartnerModel updatedPartner) {
         return partnerRepository.findById(id)

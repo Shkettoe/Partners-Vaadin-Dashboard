@@ -4,7 +4,6 @@ import java.util.Collection;
 
 import com.example.base.data.models.ContactModel;
 import com.example.base.data.models.PartnerModel;
-import com.example.base.data.services.ContactService;
 import com.example.base.data.services.PartnerService;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Div;
@@ -18,6 +17,7 @@ import com.vaadin.flow.theme.lumo.LumoUtility;
 
 @Route(":id")
 public class PartnerView extends Main implements BeforeEnterObserver {
+    private final PartnerService partnerService;
     private Long partnerId;
 
     @Override
@@ -26,18 +26,13 @@ public class PartnerView extends Main implements BeforeEnterObserver {
         renderPartner();
     }
 
-    private final PartnerService partnerService;
-
-    public PartnerView(PartnerService partnerService, ContactService contactService) {
+    public PartnerView(PartnerService partnerService) {
         this.partnerService = partnerService;
-        setClassName("flex-view");
     }
 
     private void renderPartner() {
         var partner = this.partnerService.findById(partnerId);
         var container = new Div();
-        // container.addClassNames(LumoUtility.Display.FLEX, LumoUtility.Width.FULL,
-        // LumoUtility.Gap.SMALL, LumoUtility.JustifyContent.BETWEEN);
         if (partner.isPresent()) {
             container.add(partnerDataFields(partner.get()));
             container.add(this.contactsGrid(partner.get().getContacts()));
