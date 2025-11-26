@@ -54,6 +54,15 @@ public class PartnerService {
                     existing.setShippmentShortName(updatedPartner.getShippmentShortName());
                     existing.setShippmentPostCode(updatedPartner.getShippmentPostCode());
                     existing.setShippmentPhone(updatedPartner.getShippmentPhone());
+
+                    if (updatedPartner.getContacts() != null) {
+                        existing.getContacts().clear();
+                        updatedPartner.getContacts().forEach(contact -> {
+                            contact.setPartner(existing);
+                            existing.getContacts().add(contact);
+                        });
+                    }
+
                     return partnerRepository.save(existing);
                 })
                 .orElseThrow(() -> new RuntimeException("Partner not found with id: " + id));

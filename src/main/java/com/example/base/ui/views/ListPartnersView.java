@@ -5,16 +5,19 @@ import java.util.Arrays;
 
 import com.example.base.data.models.PartnerModel;
 import com.example.base.data.services.PartnerService;
+import com.example.base.ui.component.PartnerComponent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridMultiSelectionModel;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Main;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.Route;
@@ -118,7 +121,7 @@ public class ListPartnersView extends Main {
                 grid.addComponentColumn(item -> {
                         var editBtn = new Button(VaadinIcon.EDIT.create());
                         editBtn.addThemeVariants(ButtonVariant.LUMO_WARNING);
-                        editBtn.addClickListener(e -> editPartner(item.getId()));
+                        editBtn.addClickListener(e -> editPartner(item));
                         var deleteBtn = new Button(VaadinIcon.TRASH.create());
                         deleteBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
                         deleteBtn.addClickListener(e -> removePartner(new ArrayList<>(Arrays.asList(item.getId()))));
@@ -143,8 +146,21 @@ public class ListPartnersView extends Main {
          * 
          * @param item PartnerModel
          */
-        private void editPartner(Long id) {
-                UI.getCurrent().navigate(PartnerView.class, new RouteParameters("id", id.toString()));
+        private void editPartner(PartnerModel partner) {
+                var editDialog = new Dialog();
+                var closeButtonLayout = new HorizontalLayout(
+                                new Button(VaadinIcon.CLOSE.create(), e -> editDialog.close()));
+                var partnerComponent = new PartnerComponent(partner, partner.getContacts());
+                partnerComponent.setOnSave(p -> {
+                        partnerService.update(partner.getId(), p);
+                        loadPartners();
+                        editDialog.close();
+                });
+                closeButtonLayout.setWidthFull();
+                closeButtonLayout.setJustifyContentMode(JustifyContentMode.END);
+                editDialog.setWidthFull();
+                editDialog.add(closeButtonLayout, partnerComponent);
+                editDialog.open();
         }
 
         /**
@@ -155,8 +171,10 @@ public class ListPartnersView extends Main {
         private void removePartner(ArrayList<Long> ids) {
                 // Are you sure dialog
                 if (ids.size() < 1)
+                        // No partners selected
                         return;
                 else if (ids.size() > 1) {
+                        // Remove multiple partners
                         var confirmDialog = new ConfirmDialog();
                         confirmDialog.setHeader(String.format("Ali ste prepričani, da želite izbrisati %d partnerjev?",
                                         ids.size()));
@@ -173,6 +191,7 @@ public class ListPartnersView extends Main {
                                         Notification.Position.TOP_CENTER));
                         confirmDialog.open();
                 } else {
+                        // Remove single partner
                         var confirmDialog = new ConfirmDialog();
                         confirmDialog.setHeader("Ali ste prepričani, da želite izbrisati tega partnerja?");
                         confirmDialog.setConfirmText("Da");

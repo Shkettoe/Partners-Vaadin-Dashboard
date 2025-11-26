@@ -1,6 +1,7 @@
 /target/
 .idea/
 .vscode/
+.cursor/
 .settings
 .project
 .classpath

@@ -1,287 +1,438 @@
 package com.example.base.ui.component;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 
 import com.example.base.data.models.ContactModel;
 import com.example.base.data.models.PartnerModel;
+import com.example.base.ui.converters.PhoneNumberConverter;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.binder.ValidationException;
+import com.vaadin.flow.data.validator.EmailValidator;
 import com.vaadin.flow.data.validator.RegexpValidator;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 
 public class PartnerComponent extends Div {
+
+    // Callback
     private Consumer<PartnerModel> onSave;
 
-    public record ContactFields(TextField nameField, TextField phoneField, TextField emailField) {
+    // Binders
+    private final Binder<PartnerModel> partnerBinder = new Binder<>(PartnerModel.class);
 
-    }
+    // Input fields
+    private final TextField nameField = new TextField("Naziv");
+    private final TextField shortNameField = new TextField("Kratek Naziv");
+    private final TextField addressField = new TextField("Naslov");
+    private final TextField postCodeField = new TextField("Pošta");
+    private final TextField taxNumberField = new TextField("Davčna številka");
+    private final TextField shippmentNameField = new TextField("Naziv dostavne točke");
+    private final TextField shippmentShortNameField = new TextField("Kratek Naziv");
+    private final TextField shippmentPostCodeField = new TextField("Pošta");
+    private final TextField shippmentContactField = new TextField("Telefonska številka");
 
-    private final List<ContactFields> contactFields = new ArrayList<>();
+    // Contact management
+    private final Div contactsContainer = new Div();
+    private final List<ContactFieldSet> contactFieldSets = new ArrayList<>();
 
-    public void setOnSave(Consumer<PartnerModel> onSave) {
-        this.onSave = onSave;
-    }
+    private class ContactFieldSet {
+        private final TextField nameField;
+        private final TextField phoneField;
+        private final EmailField emailField;
+        private final Binder<ContactModel> binder; // ✅ Each contact has own binder!
+        private final Div container;
 
-    private PartnerModel createPartnerModel() {
-        try {
-            var partnerModel = new PartnerModel();
-            partnerBinder.writeBean(partnerModel);
-            partnerModel.setName(nameField.getValue());
-            partnerModel.setShortName(shortNameField.getValue());
-            partnerModel.setAddress(addressField.getValue());
-            partnerModel.setPostCode(postCodeField.getValue());
-            partnerModel.setTaxNumber(taxNumberField.getValue());
-            partnerModel.setShippmentContactPerson(shippmentNameField.getValue());
-            partnerModel.setShippmentShortName(shippmentShortNameField.getValue());
-            partnerModel.setShippmentPostCode(shippmentPostCodeField.getValue());
-            partnerModel.setShippmentPhone(shippmentContactField.getValue());
+        public ContactFieldSet() {
+            this.binder = new Binder<>(ContactModel.class);
 
-            var contacts = new ArrayList<ContactModel>();
-            this.contactFields.forEach(contactFields -> {
-                try {
-                    var contactModel = new ContactModel();
-                    contactBinder.writeBean(contactModel);
-                    contactModel.setName(contactFields.nameField().getValue());
-                    contactModel.setPhone(contactFields.phoneField().getValue());
-                    contactModel.setEmail(contactFields.emailField().getValue());
-                    contactModel.setPartner(partnerModel);
-                    contacts.add(contactModel);
+            // Create fields
+            this.nameField = new TextField("Kontaktna oseba");
+            this.phoneField = new TextField("Telefon");
+            this.emailField = new EmailField("Email");
 
-                } catch (ValidationException e) {
+            // Configure binder for this contact
+            configureBinder();
 
-                }
-            });
-            partnerModel.setContacts(contacts);
+            // Build UI
+            this.container = buildContainer();
+        }
 
-            return partnerModel;
+        private void configureBinder() {
+            binder.forField(nameField)
+                    .asRequired("Ime je obvezno")
+                    .bind(ContactModel::getName, ContactModel::setName);
 
-        } catch (ValidationException e) {
-            return null;
+            binder.forField(phoneField)
+                    .asRequired("Telefon je obvezen")
+                    .withConverter(new PhoneNumberConverter("SI"))
+                    .bind(ContactModel::getPhone, ContactModel::setPhone);
+
+            binder.forField(emailField)
+                    .asRequired("Email je obvezen")
+                    .withValidator(new EmailValidator("Neveljaven email naslov"))
+                    .bind(ContactModel::getEmail, ContactModel::setEmail);
+        }
+
+        private Div buildContainer() {
+            var container = new Div();
+            container.addClassNames(
+                    LumoUtility.Display.FLEX,
+                    LumoUtility.FlexDirection.COLUMN,
+                    LumoUtility.Gap.SMALL,
+                    LumoUtility.Padding.SMALL,
+                    LumoUtility.Border.ALL,
+                    LumoUtility.BorderColor.CONTRAST_10,
+                    LumoUtility.BorderRadius.MEDIUM);
+
+            // Remove button
+            var removeButton = new Button(VaadinIcon.MINUS.create());
+            removeButton.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);
+            removeButton.addClickListener(e -> removeContact(this));
+
+            var removeButtonLayout = new HorizontalLayout(removeButton);
+            removeButtonLayout.setWidthFull();
+            removeButtonLayout.setJustifyContentMode(JustifyContentMode.END);
+
+            // Fields layout
+            var fieldsLayout = new Div(nameField, phoneField, emailField);
+            fieldsLayout.addClassNames(
+                    LumoUtility.Display.FLEX,
+                    LumoUtility.FlexDirection.COLUMN,
+                    LumoUtility.Gap.SMALL);
+
+            container.add(removeButtonLayout, fieldsLayout);
+            return container;
+        }
+
+        public ContactModel toContactModel() throws ValidationException {
+            var contact = new ContactModel();
+            binder.writeBean(contact); // ✅ Only this - no manual setting!
+            return contact;
+        }
+
+        public boolean isValid() {
+            return binder.validate().isOk();
+        }
+
+        public Div getContainer() {
+            return container;
         }
     }
 
-    private Div partnerDataFields() {
-        var partnerField = new Div();
-        partnerField.addClassNames(LumoUtility.Display.FLEX, LumoUtility.Width.FULL, LumoUtility.FlexDirection.COLUMN,
-                LumoUtility.Gap.SMALL);
+    // Buttons
+    private final Button saveButton = new Button("Shrani", VaadinIcon.CHECK.create());
+    private final Button resetButton = new Button("Ponastavi", VaadinIcon.REFRESH.create());
 
-        partnerField.add(nameField);
-        partnerField.add(shortNameField);
-        partnerField.add(addressField);
-        partnerField.add(postCodeField);
-        partnerField.add(taxNumberField);
+    /**
+     * Constructor for the PartnerComponent.
+     */
+    public PartnerComponent() {
+        addClassNames(LumoUtility.Height.SCREEN, LumoUtility.Padding.XLARGE);
 
-        return partnerField;
+        configurePartnerBinder();
+        configureButtons();
+
+        var mainLayout = new Div();
+        mainLayout.addClassNames(
+                LumoUtility.Display.FLEX,
+                LumoUtility.FlexDirection.ROW,
+                LumoUtility.AlignItems.START,
+                LumoUtility.Gap.XLARGE,
+                LumoUtility.Margin.Vertical.LARGE);
+
+        mainLayout.add(
+                createPartnerSection(),
+                createContactsSection(),
+                createShippingSection());
+
+        add(createHeadersLayout(), mainLayout, createButtonsLayout());
     }
 
-    private final Div contactsContainer = new Div();
-    private TextField nameField = new TextField("Naziv");
-    private TextField shortNameField = new TextField("Kratek Naziv");
-    private TextField addressField = new TextField("Naslov");
-    private TextField postCodeField = new TextField("Pošta");
-    private TextField taxNumberField = new TextField("Davčna številka");
-    private TextField shippmentNameField = new TextField("Naziv dostavne točke");
-    private TextField shippmentShortNameField = new TextField("Kratek Naziv");
-    private TextField shippmentPostCodeField = new TextField("Pošta");
-    private TextField shippmentContactField = new TextField("Telefonska številka");
-
-    private Button saveButton = new Button("Shrani", VaadinIcon.CHECK.create());
-    private Button resetButton = new Button("Ponastavi", VaadinIcon.REFRESH.create());
-
-    private Div createSingleContactFields() {
-        var nameField = new TextField("Kontaktna oseba");
-        var phoneField = new TextField("Telefon");
-        var emailField = new TextField("Email");
-
-        contactBinder.forField(nameField).asRequired("Naziv je obvezno polje").bind(ContactModel::getName,
-                ContactModel::setName);
-        contactBinder.forField(phoneField).asRequired("Telefon je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna telefonska številka", "\\d{9}"))
-                .bind(ContactModel::getPhone, ContactModel::setPhone);
-        contactBinder.forField(emailField).asRequired("Email je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna email naslov",
-                        "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"))
-                .bind(ContactModel::getEmail, ContactModel::setEmail);
-
-        var contactFields = new ContactFields(nameField, phoneField, emailField);
-        this.contactFields.add(contactFields);
-
-        var contactDiv = new Div();
-        contactDiv.addClassNames(LumoUtility.Display.FLEX, LumoUtility.FlexDirection.COLUMN,
-                LumoUtility.Gap.SMALL);
-
-        var removeButton = new Button(VaadinIcon.MINUS.create());
-        removeButton.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);
-        removeButton.addClickListener(e -> {
-            contactsContainer.remove(contactDiv);
-            this.contactFields.remove(contactFields);
-        });
-
-        var fieldsLayout = new Div(contactFields.nameField(), contactFields.phoneField(), contactFields.emailField());
-        fieldsLayout.addClassNames(LumoUtility.Display.FLEX, LumoUtility.FlexDirection.COLUMN,
-                LumoUtility.Gap.SMALL);
-
-        var removeButtonLayout = new HorizontalLayout();
-        removeButtonLayout.setWidthFull();
-        removeButtonLayout.setJustifyContentMode(JustifyContentMode.END);
-        removeButtonLayout.add(removeButton);
-
-        contactDiv.add(removeButtonLayout, fieldsLayout);
-        return contactDiv;
+    public PartnerComponent(PartnerModel partner) {
+        this();
+        partnerBinder.readBean(partner);
     }
 
-    private Div contactsForm() {
-        var contactsForm = new Div();
-        contactsForm.addClassNames(LumoUtility.Display.FLEX, LumoUtility.Width.FULL, LumoUtility.FlexDirection.COLUMN,
-                LumoUtility.AlignItems.STRETCH, LumoUtility.Gap.MEDIUM);
+    public PartnerComponent(PartnerModel partner, Collection<ContactModel> contacts) {
+        this(partner);
+        for (ContactModel contact : contacts) {
+            var fieldSet = new ContactFieldSet();
+            fieldSet.binder.readBean(contact);
+            contactFieldSets.add(fieldSet);
+            contactsContainer.add(fieldSet.getContainer());
+        }
+    }
 
-        contactsContainer.addClassNames(LumoUtility.Display.FLEX, LumoUtility.FlexDirection.COLUMN,
+    /**
+     * Configures the partner binder.
+     */
+    private void configurePartnerBinder() {
+        partnerBinder.forField(nameField)
+                .asRequired("Naziv je obvezno polje")
+                .bind(PartnerModel::getName, PartnerModel::setName);
+
+        partnerBinder.forField(shortNameField)
+                .asRequired("Kratek naziv je obvezno polje")
+                .bind(PartnerModel::getShortName, PartnerModel::setShortName);
+
+        partnerBinder.forField(addressField)
+                .asRequired("Naslov je obvezno polje")
+                .bind(PartnerModel::getAddress, PartnerModel::setAddress);
+
+        partnerBinder.forField(postCodeField)
+                .asRequired("Pošta je obvezno polje")
+                .withValidator(new RegexpValidator("Nepravilna poštna številka (4 številke)", "\\d{4}"))
+                .bind(PartnerModel::getPostCode, PartnerModel::setPostCode);
+
+        partnerBinder.forField(taxNumberField)
+                .asRequired("Davčna številka je obvezno polje")
+                .withValidator(new RegexpValidator("Nepravilna davčna številka (8 številk)", "\\d{8}"))
+                .bind(PartnerModel::getTaxNumber, PartnerModel::setTaxNumber);
+
+        partnerBinder.forField(shippmentNameField)
+                .asRequired("Kontaktna oseba je obvezno polje")
+                .bind(PartnerModel::getShippmentContactPerson, PartnerModel::setShippmentContactPerson);
+
+        partnerBinder.forField(shippmentShortNameField)
+                .asRequired("Kratek naziv je obvezno polje")
+                .bind(PartnerModel::getShippmentShortName, PartnerModel::setShippmentShortName);
+
+        partnerBinder.forField(shippmentPostCodeField)
+                .asRequired("Pošta je obvezno polje")
+                .withValidator(new RegexpValidator("Nepravilna poštna številka (4 številke)", "\\d{4}"))
+                .bind(PartnerModel::getShippmentPostCode, PartnerModel::setShippmentPostCode);
+
+        partnerBinder.forField(shippmentContactField)
+                .asRequired("Telefonska številka je obvezno polje")
+                .withConverter(new PhoneNumberConverter("SI"))
+                .bind(PartnerModel::getShippmentPhone, PartnerModel::setShippmentPhone);
+    }
+
+    /**
+     * Configures save and reset buttons.
+     */
+    private void configureButtons() {
+        saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        saveButton.addClickListener(e -> handleSave());
+
+        resetButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+        resetButton.addClickListener(e -> handleReset());
+    }
+
+    /**
+     * Creates the headers layout with appropriate titles.
+     */
+    private HorizontalLayout createHeadersLayout() {
+        var headers = new HorizontalLayout();
+        headers.setWidthFull();
+        headers.addClassNames(LumoUtility.JustifyContent.BETWEEN, LumoUtility.Gap.XLARGE);
+
+        var partnerHeader = new Div(new H2("Osnovni podatki"));
+        var contactsHeader = new Div(new H2("Kontaktni podatki"));
+        var shippingHeader = new Div(new H2("Dostavni podatki"));
+
+        partnerHeader.setWidthFull();
+        contactsHeader.setWidthFull();
+        shippingHeader.setWidthFull();
+
+        headers.add(partnerHeader, contactsHeader, shippingHeader);
+        return headers;
+    }
+
+    /**
+     * Partner data, name, address, etc.
+     * 
+     * @return Div
+     */
+    private Div createPartnerSection() {
+        var section = new Div();
+        section.addClassNames(
+                LumoUtility.Display.FLEX,
+                LumoUtility.Width.FULL,
+                LumoUtility.FlexDirection.COLUMN,
+                LumoUtility.Gap.SMALL);
+
+        section.add(nameField, shortNameField, addressField, postCodeField, taxNumberField);
+        return section;
+    }
+
+    /**
+     * Expandable contacts form.
+     * 
+     * @return Div
+     */
+    private Div createContactsSection() {
+        var section = new Div();
+        section.addClassNames(
+                LumoUtility.Display.FLEX,
+                LumoUtility.Width.FULL,
+                LumoUtility.FlexDirection.COLUMN,
+                LumoUtility.AlignItems.STRETCH,
+                LumoUtility.Gap.MEDIUM);
+
+        contactsContainer.addClassNames(
+                LumoUtility.Display.FLEX,
+                LumoUtility.FlexDirection.COLUMN,
                 LumoUtility.Gap.SMALL);
 
         var addButton = new Button("Dodaj Kontakt", VaadinIcon.PLUS.create());
         addButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        addButton.addClickListener(e -> {
-            contactsContainer.add(createSingleContactFields());
-        });
+        addButton.addClickListener(e -> addContact());
 
-        contactsForm.add(contactsContainer, addButton);
-        return contactsForm;
+        section.add(contactsContainer, addButton);
+        return section;
     }
 
-    private Div shippmentDataForm() {
-        var shippmentForm = new Div();
-        shippmentForm.addClassNames(LumoUtility.Display.FLEX, LumoUtility.Width.FULL, LumoUtility.FlexDirection.COLUMN,
+    /**
+     * Shipping data, name, address, etc.
+     * 
+     * @return Div
+     */
+    private Div createShippingSection() {
+        var section = new Div();
+        section.addClassNames(
+                LumoUtility.Display.FLEX,
+                LumoUtility.Width.FULL,
+                LumoUtility.FlexDirection.COLUMN,
                 LumoUtility.Gap.SMALL);
 
-        shippmentForm.add(shippmentNameField, shippmentShortNameField, shippmentPostCodeField, shippmentContactField);
-
-        return shippmentForm;
+        section.add(shippmentNameField, shippmentShortNameField,
+                shippmentPostCodeField, shippmentContactField);
+        return section;
     }
 
-    private HorizontalLayout headersLayout() {
-        var headersLayout = new HorizontalLayout();
-        var partnerHeader = new HorizontalLayout();
-        var contactsHeader = new HorizontalLayout();
-        var shippmentHeader = new HorizontalLayout();
-        partnerHeader.setWidthFull();
-        contactsHeader.setWidthFull();
-        shippmentHeader.setWidthFull();
-        partnerHeader.setJustifyContentMode(JustifyContentMode.START);
-        contactsHeader.setJustifyContentMode(JustifyContentMode.START);
-        shippmentHeader.setJustifyContentMode(JustifyContentMode.START);
-        partnerHeader.add(new H2("Osnovni podatki"));
-        contactsHeader.add(new H2("Kontaktni podatki"));
-        shippmentHeader.add(new H2("Dostavni podatki"));
-        headersLayout.setWidthFull();
-        headersLayout.setJustifyContentMode(JustifyContentMode.BETWEEN);
-        headersLayout.add(partnerHeader, contactsHeader, shippmentHeader);
-
-        return headersLayout;
+    /**
+     * Buttons layout for save and reset buttons pushed to the right.
+     * 
+     * @return HorizontalLayout
+     */
+    private HorizontalLayout createButtonsLayout() {
+        var layout = new HorizontalLayout();
+        layout.setWidthFull();
+        layout.setJustifyContentMode(JustifyContentMode.END);
+        layout.add(saveButton, resetButton);
+        return layout;
     }
 
-    private void clearForm() {
-        nameField.setValue("");
-        shortNameField.setValue("");
-        addressField.setValue("");
-        postCodeField.setValue("");
-        taxNumberField.setValue("");
-        shippmentNameField.setValue("");
-        shippmentShortNameField.setValue("");
-        shippmentPostCodeField.setValue("");
-        shippmentContactField.setValue("");
-        this.contactFields.clear();
-        this.contactsContainer.removeAll();
-
-        partnerBinder.refreshFields();
-        contactBinder.refreshFields();
+    /**
+     * Adds a new contact field set to the contacts container.
+     */
+    private void addContact() {
+        var fieldSet = new ContactFieldSet();
+        contactFieldSets.add(fieldSet);
+        contactsContainer.add(fieldSet.getContainer());
     }
 
-    private HorizontalLayout buttonContainer() {
-        var buttonContainer = new HorizontalLayout();
-        buttonContainer.setWidthFull();
-        buttonContainer.setJustifyContentMode(JustifyContentMode.END);
+    /**
+     * Removes a contact field set from the contacts container.
+     * 
+     * @param fieldSet ContactFieldSet to remove
+     */
+    private void removeContact(ContactFieldSet fieldSet) {
+        contactsContainer.remove(fieldSet.getContainer());
+        contactFieldSets.remove(fieldSet);
+    }
 
-        saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        saveButton.addClickListener(e -> {
+    /**
+     * Handles the save action.
+     */
+    private void handleSave() {
+        if (!validateAll()) {
+            return;
+        }
+
+        try {
+            var partner = createPartner();
+
             if (onSave != null) {
-                onSave.accept(createPartnerModel());
-                clearForm();
+                onSave.accept(partner);
+                handleReset();
             }
-        });
-
-        resetButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
-        resetButton.addClickListener(e -> {
-            clearForm();
-        });
-
-        buttonContainer.add(saveButton, resetButton);
-        return buttonContainer;
+        } catch (ValidationException e) {
+            Notification.show("Napaka pri shranjevanju: " + e.getMessage(), 3000,
+                    Notification.Position.TOP_CENTER)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        }
     }
 
-    private final Binder<PartnerModel> partnerBinder = new Binder<>(PartnerModel.class);
-    private final Binder<ContactModel> contactBinder = new Binder<>(ContactModel.class);
+    /**
+     * Validates all the data in the form.
+     * 
+     * @return boolean
+     */
+    private boolean validateAll() {
+        if (!partnerBinder.validate().isOk()) {
+            Notification.show("Prosim preverite osnovne podatke", 3000,
+                    Notification.Position.TOP_CENTER)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return false;
+        }
 
-    private void bindPartnerData() {
-        partnerBinder.forField(nameField).asRequired("Naziv je obvezno polje").bind(PartnerModel::getName,
-                PartnerModel::setName);
+        for (ContactFieldSet fieldSet : contactFieldSets) {
+            if (!fieldSet.isValid()) {
+                Notification.show("Prosim preverite kontaktne podatke", 3000,
+                        Notification.Position.TOP_CENTER)
+                        .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                return false;
+            }
+        }
 
-        partnerBinder.forField(shortNameField).asRequired("Kratek naziv je obvezno polje")
-                .bind(PartnerModel::getShortName, PartnerModel::setShortName);
-
-        partnerBinder.forField(addressField).asRequired("Naslov je obvezno polje")
-                .bind(PartnerModel::getAddress,
-                        PartnerModel::setAddress);
-
-        partnerBinder.forField(postCodeField).asRequired("Pošta je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna poštna številka", "\\d{4}"))
-                .bind(PartnerModel::getPostCode,
-                        PartnerModel::setPostCode);
-
-        partnerBinder.forField(taxNumberField).asRequired("Davčna številka je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna davčna številka", "\\d{8}"))
-                .bind(PartnerModel::getTaxNumber, PartnerModel::setTaxNumber);
-
-        partnerBinder.forField(shippmentNameField).asRequired("Kontaktna oseba je obvezno polje")
-                .bind(PartnerModel::getShippmentContactPerson,
-                        PartnerModel::setShippmentContactPerson);
-
-        partnerBinder.forField(shippmentShortNameField).asRequired("Kratek naziv je obvezno polje")
-                .bind(PartnerModel::getShippmentShortName,
-                        PartnerModel::setShippmentShortName);
-
-        partnerBinder.forField(shippmentPostCodeField).asRequired("Pošta je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna poštna številka", "\\d{4}"))
-                .bind(PartnerModel::getShippmentPostCode,
-                        PartnerModel::setShippmentPostCode);
-
-        partnerBinder.forField(shippmentContactField).asRequired("Telefonska številka je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna telefonska številka", "\\d{9}"))
-                .bind(PartnerModel::getShippmentPhone,
-                        PartnerModel::setShippmentPhone);
+        return true;
     }
 
-    public PartnerComponent() {
-        this.addClassNames(LumoUtility.Height.SCREEN, LumoUtility.Padding.XLARGE);
-        var partnerComponent = new Div();
-        partnerComponent.addClassNames(
-                LumoUtility.Display.FLEX,
-                LumoUtility.FlexDirection.ROW,
-                LumoUtility.AlignItems.CENTER,
-                LumoUtility.Gap.XLARGE, LumoUtility.Margin.Vertical.LARGE);
+    /**
+     * Creates a new Partner from the form data.
+     * 
+     * @return PartnerModel
+     * @throws ValidationException
+     */
+    private PartnerModel createPartner() throws ValidationException {
+        var partner = new PartnerModel();
 
-        bindPartnerData();
+        // populates partner variable with the data from the form, or throws an error if
+        // validation fails
+        partnerBinder.writeBean(partner);
 
-        partnerComponent.add(this.partnerDataFields(), this.contactsForm(), shippmentDataForm());
-        add(headersLayout(), partnerComponent, buttonContainer());
+        var contacts = new ArrayList<ContactModel>();
+        for (ContactFieldSet fieldSet : contactFieldSets) {
+            var contact = fieldSet.toContactModel();
+            contact.setPartner(partner);
+            contacts.add(contact);
+        }
+        partner.setContacts(contacts);
+
+        return partner;
+    }
+
+    /**
+     * Resets the form
+     */
+    private void handleReset() {
+        partnerBinder.readBean(new PartnerModel());
+
+        contactsContainer.removeAll();
+        contactFieldSets.clear();
+    }
+
+    /**
+     * Sets the onSave callback.
+     * 
+     * @param onSave
+     */
+    public void setOnSave(Consumer<PartnerModel> onSave) {
+        this.onSave = onSave;
     }
 }
