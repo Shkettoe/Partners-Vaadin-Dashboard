@@ -62,6 +62,23 @@ public class ListPartnersView extends Main {
          */
         private void setupButtons() {
                 addButton.addThemeVariants(ButtonVariant.LUMO_ICON);
+                addButton.addClickListener(e -> {
+                        var addDialog = new Dialog();
+                        addDialog.setWidthFull();
+                        var closeButtonLayout = new HorizontalLayout(
+                                        new Button(VaadinIcon.CLOSE.create(), e1 -> addDialog.close()));
+                        closeButtonLayout.setJustifyContentMode(JustifyContentMode.END);
+                        var partnerComponent = new PartnerComponent();
+                        partnerComponent.setOnSave(p -> {
+                                partnerService.save(p);
+                                loadPartners();
+                                addDialog.close();
+                                Notification.show("Partner je bil uspešno shranjen", 3000,
+                                                Notification.Position.TOP_CENTER);
+                        });
+                        addDialog.add(closeButtonLayout, partnerComponent);
+                        addDialog.open();
+                });
 
                 editButton.addThemeVariants(ButtonVariant.LUMO_WARNING);
 
@@ -88,7 +105,6 @@ public class ListPartnersView extends Main {
                 GridMultiSelectionModel<PartnerModel> selectionModel = (GridMultiSelectionModel<PartnerModel>) grid
                                 .setSelectionMode(Grid.SelectionMode.MULTI);
                 selectionModel.setDragSelect(true);
-                grid.setRowsDraggable(true);
 
                 // Event Listeners
                 grid.addItemDoubleClickListener(item -> {

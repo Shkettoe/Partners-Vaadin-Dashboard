@@ -11,7 +11,8 @@
 }
 
 /* Hoverable grid */
-.hoverable-grid::part(row):hover {
+.hoverable-grid::part(row):hover,
+.hoverable-grid::part(body-cell):hover {
   background-color: var(--lumo-primary-color-10pct);
   cursor: pointer;
 }
@@ -21,21 +22,14 @@
   background-color: transparent;
 }
 
-.hoverable-grid::part(body-cell):hover {
-  cursor: pointer;
-  background-color: var(--lumo-primary-color-10pct);
-}
-
 .hoverable-grid::part(body-cell):focus {
   background-color: var(--lumo-primary-color-10pct);
 }
 
-.hoverable-grid::part(last-column-cell):hover {
-  background-color: transparent;
-  cursor: default;
-}
-
+.hoverable-grid::part(last-column-cell):hover,
+.hoverable-grid::part(last-column-cell):focus,
+.hoverable-grid::part(first-column-cell):hover,
 .hoverable-grid::part(first-column-cell):focus {
-  background-color: red;
+  background-color: transparent;
   cursor: default;
 }
