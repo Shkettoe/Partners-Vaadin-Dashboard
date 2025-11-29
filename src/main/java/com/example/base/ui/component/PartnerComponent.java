@@ -22,10 +22,11 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.binder.ValidationException;
 import com.vaadin.flow.data.validator.EmailValidator;
-import com.vaadin.flow.data.validator.RegexpValidator;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 
 public class PartnerComponent extends Div {
+    // Configuration
+    private boolean requiredFields = false;
 
     // Callback
     private Consumer<PartnerModel> onSave;
@@ -119,7 +120,7 @@ public class PartnerComponent extends Div {
 
         public ContactModel toContactModel() throws ValidationException {
             var contact = new ContactModel();
-            binder.writeBean(contact); // ✅ Only this - no manual setting!
+            binder.writeBean(contact);
             return contact;
         }
 
@@ -139,7 +140,8 @@ public class PartnerComponent extends Div {
     /**
      * Constructor for the PartnerComponent.
      */
-    public PartnerComponent() {
+    public PartnerComponent(final boolean requiredFields) {
+        this.requiredFields = requiredFields;
         addClassNames(LumoUtility.Height.SCREEN, LumoUtility.Padding.XLARGE);
 
         configurePartnerBinder();
@@ -153,16 +155,16 @@ public class PartnerComponent extends Div {
                 LumoUtility.Gap.XLARGE,
                 LumoUtility.Margin.Vertical.LARGE);
 
-        mainLayout.add(
-                createPartnerSection(),
-                createContactsSection(),
-                createShippingSection());
-
+        mainLayout.add(createPartnerSection());
+        if (requiredFields) {
+            mainLayout.add(createContactsSection());
+        }
+        mainLayout.add(createShippingSection());
         add(createHeadersLayout(), mainLayout, createButtonsLayout());
     }
 
     public PartnerComponent(PartnerModel partner) {
-        this();
+        this(true);
         partnerBinder.readBean(partner);
     }
 
@@ -176,49 +178,42 @@ public class PartnerComponent extends Div {
         }
     }
 
+    private <T> Binder.BindingBuilder<T, String> configureFieldBinding(Binder<T> binder, TextField field,
+            String errorMessage) {
+        var binding = binder.forField(field);
+        if (requiredFields)
+            binding.asRequired(errorMessage);
+        return binding;
+    }
+
     /**
      * Configures the partner binder.
      */
     private void configurePartnerBinder() {
-        partnerBinder.forField(nameField)
-                .asRequired("Naziv je obvezno polje")
-                .bind(PartnerModel::getName, PartnerModel::setName);
-
-        partnerBinder.forField(shortNameField)
-                .asRequired("Kratek naziv je obvezno polje")
-                .bind(PartnerModel::getShortName, PartnerModel::setShortName);
-
-        partnerBinder.forField(addressField)
-                .asRequired("Naslov je obvezno polje")
-                .bind(PartnerModel::getAddress, PartnerModel::setAddress);
-
-        partnerBinder.forField(postCodeField)
-                .asRequired("Pošta je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna poštna številka (4 številke)", "\\d{4}"))
-                .bind(PartnerModel::getPostCode, PartnerModel::setPostCode);
-
-        partnerBinder.forField(taxNumberField)
-                .asRequired("Davčna številka je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna davčna številka (8 številk)", "\\d{8}"))
-                .bind(PartnerModel::getTaxNumber, PartnerModel::setTaxNumber);
-
-        partnerBinder.forField(shippmentNameField)
-                .asRequired("Kontaktna oseba je obvezno polje")
-                .bind(PartnerModel::getShippmentContactPerson, PartnerModel::setShippmentContactPerson);
-
-        partnerBinder.forField(shippmentShortNameField)
-                .asRequired("Kratek naziv je obvezno polje")
-                .bind(PartnerModel::getShippmentShortName, PartnerModel::setShippmentShortName);
-
-        partnerBinder.forField(shippmentPostCodeField)
-                .asRequired("Pošta je obvezno polje")
-                .withValidator(new RegexpValidator("Nepravilna poštna številka (4 številke)", "\\d{4}"))
-                .bind(PartnerModel::getShippmentPostCode, PartnerModel::setShippmentPostCode);
-
-        partnerBinder.forField(shippmentContactField)
-                .asRequired("Telefonska številka je obvezno polje")
-                .withConverter(new PhoneNumberConverter("SI"))
-                .bind(PartnerModel::getShippmentPhone, PartnerModel::setShippmentPhone);
+        configureFieldBinding(partnerBinder, nameField, "Naziv je obvezno polje").bind(PartnerModel::getName,
+                PartnerModel::setName);
+        configureFieldBinding(partnerBinder, shortNameField, "Kratek naziv je obvezno polje").bind(
+                PartnerModel::getShortName,
+                PartnerModel::setShortName);
+        configureFieldBinding(partnerBinder, addressField, "Naslov je obvezno polje").bind(PartnerModel::getAddress,
+                PartnerModel::setAddress);
+        configureFieldBinding(partnerBinder, postCodeField, "Pošta je obvezno polje").bind(PartnerModel::getPostCode,
+                PartnerModel::setPostCode);
+        configureFieldBinding(partnerBinder, taxNumberField, "Davčna številka je obvezno polje").bind(
+                PartnerModel::getTaxNumber,
+                PartnerModel::setTaxNumber);
+        configureFieldBinding(partnerBinder, shippmentNameField, "Kontaktna oseba je obvezno polje").bind(
+                PartnerModel::getShippmentContactPerson,
+                PartnerModel::setShippmentContactPerson);
+        configureFieldBinding(partnerBinder, shippmentShortNameField, "Kratek naziv je obvezno polje").bind(
+                PartnerModel::getShippmentShortName,
+                PartnerModel::setShippmentShortName);
+        configureFieldBinding(partnerBinder, shippmentPostCodeField, "Pošta je obvezno polje").bind(
+                PartnerModel::getShippmentPostCode,
+                PartnerModel::setShippmentPostCode);
+        configureFieldBinding(partnerBinder, shippmentContactField, "Telefonska številka je obvezno polje").bind(
+                PartnerModel::getShippmentPhone,
+                PartnerModel::setShippmentPhone);
     }
 
     /**
@@ -241,14 +236,19 @@ public class PartnerComponent extends Div {
         headers.addClassNames(LumoUtility.JustifyContent.BETWEEN, LumoUtility.Gap.XLARGE);
 
         var partnerHeader = new Div(new H2("Osnovni podatki"));
-        var contactsHeader = new Div(new H2("Kontaktni podatki"));
         var shippingHeader = new Div(new H2("Dostavni podatki"));
 
         partnerHeader.setWidthFull();
-        contactsHeader.setWidthFull();
         shippingHeader.setWidthFull();
 
-        headers.add(partnerHeader, contactsHeader, shippingHeader);
+        headers.add(partnerHeader);
+        if (requiredFields) {
+            var contactsHeader = new Div(new H2("Kontaktni podatki"));
+            contactsHeader.setWidthFull();
+            headers.add(contactsHeader);
+        }
+
+        headers.add(shippingHeader);
         return headers;
     }
 

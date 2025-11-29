@@ -18,7 +18,7 @@ public class AddPartnersView extends Main {
     public AddPartnersView(PartnerService partnerService) {
         this.partnerService = partnerService;
 
-        var partnerComponent = new PartnerComponent();
+        var partnerComponent = new PartnerComponent(true);
         partnerComponent.setOnSave(partner -> {
             this.partnerService.save(partner);
             Notification.show("Partner je bil uspešno shranjen", 3000, Notification.Position.TOP_CENTER);

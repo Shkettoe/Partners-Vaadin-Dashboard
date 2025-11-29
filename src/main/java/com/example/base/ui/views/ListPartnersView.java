@@ -68,7 +68,7 @@ public class ListPartnersView extends Main {
                         var closeButtonLayout = new HorizontalLayout(
                                         new Button(VaadinIcon.CLOSE.create(), e1 -> addDialog.close()));
                         closeButtonLayout.setJustifyContentMode(JustifyContentMode.END);
-                        var partnerComponent = new PartnerComponent();
+                        var partnerComponent = new PartnerComponent(true);
                         partnerComponent.setOnSave(p -> {
                                 partnerService.save(p);
                                 loadPartners();
@@ -81,6 +81,11 @@ public class ListPartnersView extends Main {
                 });
 
                 editButton.addThemeVariants(ButtonVariant.LUMO_WARNING);
+                editButton.addClickListener(e -> {
+                        Notification.show(String.format("%d partnerjev izbranih za urejanje",
+                                        grid.getSelectedItems().size()));
+                        editPartner(new ArrayList<PartnerModel>(grid.getSelectedItems()));
+                });
 
                 deleteButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
                 deleteButton.addClickListener(e -> {
@@ -88,7 +93,7 @@ public class ListPartnersView extends Main {
                                         String.format("%d partnerjev izbranih za brisanje",
                                                         grid.getSelectedItems().size()),
                                         3000, Notification.Position.TOP_CENTER);
-                        removePartner(new ArrayList<>(
+                        removePartners(new ArrayList<>(
                                         grid.getSelectedItems().stream().map(PartnerModel::getId).toList()));
                 });
 
@@ -137,10 +142,10 @@ public class ListPartnersView extends Main {
                 grid.addComponentColumn(item -> {
                         var editBtn = new Button(VaadinIcon.EDIT.create());
                         editBtn.addThemeVariants(ButtonVariant.LUMO_WARNING);
-                        editBtn.addClickListener(e -> editPartner(item));
+                        editBtn.addClickListener(e -> editPartner(new ArrayList<>(Arrays.asList(item))));
                         var deleteBtn = new Button(VaadinIcon.TRASH.create());
                         deleteBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
-                        deleteBtn.addClickListener(e -> removePartner(new ArrayList<>(Arrays.asList(item.getId()))));
+                        deleteBtn.addClickListener(e -> removePartners(new ArrayList<>(Arrays.asList(item.getId()))));
                         var layout = new HorizontalLayout(editBtn, deleteBtn);
                         return layout;
                 }).setHeader("Dejanje").setAutoWidth(true);
@@ -162,20 +167,35 @@ public class ListPartnersView extends Main {
          * 
          * @param item PartnerModel
          */
-        private void editPartner(PartnerModel partner) {
+        private void editPartner(ArrayList<PartnerModel> partners) {
                 var editDialog = new Dialog();
                 var closeButtonLayout = new HorizontalLayout(
                                 new Button(VaadinIcon.CLOSE.create(), e -> editDialog.close()));
-                var partnerComponent = new PartnerComponent(partner, partner.getContacts());
-                partnerComponent.setOnSave(p -> {
-                        partnerService.update(partner.getId(), p);
-                        loadPartners();
-                        editDialog.close();
-                });
                 closeButtonLayout.setWidthFull();
                 closeButtonLayout.setJustifyContentMode(JustifyContentMode.END);
                 editDialog.setWidthFull();
-                editDialog.add(closeButtonLayout, partnerComponent);
+                editDialog.add(closeButtonLayout);
+                if (partners.size() < 1)
+                        // No partners selected
+                        return;
+                else if (partners.size() > 1) {
+                        var partnerComponent = new PartnerComponent(false);
+                        partnerComponent.setOnSave(p -> {
+                                partnerService.bulkUpdate(partners, p);
+                                loadPartners();
+                                editDialog.close();
+                        });
+                        editDialog.add(partnerComponent);
+                } else {
+                        var partner = partners.get(0);
+                        var partnerComponent = new PartnerComponent(partner, partner.getContacts());
+                        partnerComponent.setOnSave(p -> {
+                                partnerService.update(partner.getId(), p);
+                                loadPartners();
+                                editDialog.close();
+                        });
+                        editDialog.add(partnerComponent);
+                }
                 editDialog.open();
         }
 
@@ -184,7 +204,7 @@ public class ListPartnersView extends Main {
          * 
          * @param item PartnerModel
          */
-        private void removePartner(ArrayList<Long> ids) {
+        private void removePartners(ArrayList<Long> ids) {
                 // Are you sure dialog
                 if (ids.size() < 1)
                         // No partners selected
